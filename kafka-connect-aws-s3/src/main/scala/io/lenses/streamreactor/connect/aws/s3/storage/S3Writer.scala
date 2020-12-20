@@ -22,7 +22,7 @@ import io.lenses.streamreactor.connect.aws.s3.formats.S3FormatWriter
 import io.lenses.streamreactor.connect.aws.s3.model._
 import io.lenses.streamreactor.connect.aws.s3.sink.CommitContext
 import io.lenses.streamreactor.connect.aws.s3.sink.CommitPolicy
-import io.lenses.streamreactor.connect.aws.s3.sink.S3FileNamingStrategy
+import io.lenses.streamreactor.connect.aws.s3.sink.commit.Committer
 import org.apache.kafka.connect.data.Schema
 
 trait S3Writer {
@@ -57,10 +57,9 @@ class S3WriterImpl(sinkName: String,
                    bucketAndPrefix: BucketAndPrefix,
                    commitPolicy: CommitPolicy,
                    formatWriterFn: (TopicPartition, Map[PartitionField, String]) => S3FormatWriter,
-                   fileNamingStrategy: S3FileNamingStrategy,
                    partitionValues: Map[PartitionField, String],
-                   storage: Storage
-                  ) extends S3Writer with LazyLogging {
+                   storage: Storage,
+                   committer: Committer) extends S3Writer with LazyLogging {
 
   private var internalState: S3WriterState = _
 
@@ -116,27 +115,15 @@ class S3WriterImpl(sinkName: String,
       internalState.offset)
 
     formatWriter.close()
-    if (formatWriter.getOutstandingRename) {
-      renameFile(topicPartitionOffset, partitionValues)
+    //This cannot be before the close since close is changing state.
+    //TODO: This should be improved
+    if (formatWriter.isCommittable) {
+      committer.commit(bucketAndPrefix, topicPartitionOffset, partitionValues)
     }
 
     resetState(topicPartitionOffset)
 
     topicPartitionOffset
-  }
-
-  private def renameFile(topicPartitionOffset: TopicPartitionOffset, partitionValues: Map[PartitionField, String]): Unit = {
-    val originalFilename = fileNamingStrategy.stagingFilename(
-      bucketAndPrefix,
-      topicPartitionOffset.toTopicPartition,
-      partitionValues
-    )
-    val finalFilename = fileNamingStrategy.finalFilename(
-      bucketAndPrefix,
-      topicPartitionOffset,
-      partitionValues
-    )
-    storage.rename(originalFilename, finalFilename)
   }
 
   private def resetState(topicPartitionOffset: TopicPartitionOffset): Unit = {

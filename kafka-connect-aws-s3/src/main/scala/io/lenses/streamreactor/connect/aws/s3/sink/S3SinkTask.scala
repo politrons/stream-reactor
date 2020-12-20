@@ -22,6 +22,7 @@ import com.datamountaineer.streamreactor.common.utils.JarManifest
 import com.datamountaineer.streamreactor.connect.utils.JarManifest
 import io.lenses.streamreactor.connect.aws.s3.auth.AwsContextCreator
 import io.lenses.streamreactor.connect.aws.s3.model._
+import io.lenses.streamreactor.connect.aws.s3.sink.commit.Committer
 import io.lenses.streamreactor.connect.aws.s3.sink.commit.WatermarkSeeker
 import io.lenses.streamreactor.connect.aws.s3.sink.config.S3SinkConfig
 import io.lenses.streamreactor.connect.aws.s3.sink.conversion.HeaderToStringConverter
@@ -55,7 +56,7 @@ class S3SinkTask extends SinkTask {
 
   private var sinkName: String = _
 
-  private var watermarkSeeker: WatermarkSeeker = _
+  private var committer: Committer = _
 
   override def version(): String = manifest.version()
 
@@ -75,8 +76,8 @@ class S3SinkTask extends SinkTask {
 
     setErrorRetryInterval
 
-    writerManager = S3WriterManager.from(config, storage, sinkName)
-    watermarkSeeker = WatermarkSeeker.from(config, storage)
+    committer = Committer.from(config, storage)
+    writerManager = S3WriterManager.from(config, storage, committer, sinkName)
   }
 
   private def setErrorRetryInterval = {
@@ -176,7 +177,7 @@ class S3SinkTask extends SinkTask {
         .map(tp => TopicPartition(Topic(tp.topic), tp.partition))
         .toSet
 
-      watermarkSeeker.latest(topicPartitions).foreach {
+      committer.latest(topicPartitions).foreach {
         case (topicPartition, offset) =>
           logger.debug(s"Seeking to ${topicPartition.topic.value}:${topicPartition.partition}:${offset.value}")
           context.offset(topicPartition.toKafka, offset.value)
