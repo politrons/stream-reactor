@@ -58,8 +58,9 @@ class S3WriterImpl(sinkName: String,
                    commitPolicy: CommitPolicy,
                    formatWriterFn: (TopicPartition, Map[PartitionField, String]) => S3FormatWriter,
                    fileNamingStrategy: S3FileNamingStrategy,
-                   partitionValues: Map[PartitionField, String]
-                  )(implicit storageInterface: StorageInterface) extends S3Writer with LazyLogging {
+                   partitionValues: Map[PartitionField, String],
+                   storage: Storage
+                  ) extends S3Writer with LazyLogging {
 
   private var internalState: S3WriterState = _
 
@@ -135,7 +136,7 @@ class S3WriterImpl(sinkName: String,
       topicPartitionOffset,
       partitionValues
     )
-    storageInterface.rename(originalFilename, finalFilename)
+    storage.rename(originalFilename, finalFilename)
   }
 
   private def resetState(topicPartitionOffset: TopicPartitionOffset): Unit = {
@@ -153,7 +154,7 @@ class S3WriterImpl(sinkName: String,
     logger.debug(s"[{}] S3Writer.resetState: New internal state: $internalState", sinkName)
   }
 
-  override def close(): Unit = storageInterface.close()
+  override def close(): Unit = storage.close()
 
   override def getCommittedOffset: Option[Offset] = internalState.committedOffset
 

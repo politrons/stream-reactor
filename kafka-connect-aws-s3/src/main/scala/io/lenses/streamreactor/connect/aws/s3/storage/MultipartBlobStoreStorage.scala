@@ -37,7 +37,7 @@ import scala.collection.JavaConverters._
 import scala.collection.immutable.VectorBuilder
 import scala.util.Try
 
-class MultipartBlobStoreStorageInterface(sinkName: String, blobStoreContext: BlobStoreContext) extends StorageInterface with LazyLogging {
+class MultipartBlobStoreStorageInterface(sinkName: String, blobStoreContext: BlobStoreContext) extends Storage with LazyLogging {
 
   private val blobStore = blobStoreContext.getBlobStore
   private val awsMaxKeys = 1000

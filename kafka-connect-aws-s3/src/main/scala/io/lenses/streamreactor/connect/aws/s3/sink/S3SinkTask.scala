@@ -19,13 +19,19 @@ package io.lenses.streamreactor.connect.aws.s3.sink
 
 import com.datamountaineer.streamreactor.common.errors.RetryErrorPolicy
 import com.datamountaineer.streamreactor.common.utils.JarManifest
+import com.datamountaineer.streamreactor.connect.utils.JarManifest
 import io.lenses.streamreactor.connect.aws.s3.auth.AwsContextCreator
 import io.lenses.streamreactor.connect.aws.s3.model._
+import io.lenses.streamreactor.connect.aws.s3.sink.commit.WatermarkSeeker
 import io.lenses.streamreactor.connect.aws.s3.sink.config.S3SinkConfig
 import io.lenses.streamreactor.connect.aws.s3.sink.conversion.HeaderToStringConverter
 import io.lenses.streamreactor.connect.aws.s3.sink.conversion.ValueToSinkDataConverter
 import io.lenses.streamreactor.connect.aws.s3.storage.MultipartBlobStoreStorageInterface
 import io.lenses.streamreactor.connect.aws.s3.storage.StorageInterface
+import io.lenses.streamreactor.connect.aws.s3.sink.conversion.HeaderToStringConverter
+import io.lenses.streamreactor.connect.aws.s3.sink.conversion.ValueToSinkDataConverter
+import io.lenses.streamreactor.connect.aws.s3.storage.MultipartBlobStoreStorage
+import io.lenses.streamreactor.connect.aws.s3.storage.Storage
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.common.{TopicPartition => KafkaTopicPartition}
 import org.apache.kafka.connect.sink.SinkRecord
@@ -43,11 +49,13 @@ class S3SinkTask extends SinkTask {
 
   private var writerManager: S3WriterManager = _
 
-  private var storageInterface: StorageInterface = _
+  private var storage: Storage = _
 
   private var config: S3SinkConfig = _
 
   private var sinkName: String = _
+
+  private var watermarkSeeker: WatermarkSeeker = _
 
   override def version(): String = manifest.version()
 
@@ -59,7 +67,7 @@ class S3SinkTask extends SinkTask {
     val awsConfig = S3SinkConfig(props.asScala.toMap)
 
     val awsContextCreator = new AwsContextCreator(AwsContextCreator.DefaultCredentialsFn)
-    storageInterface = new MultipartBlobStoreStorageInterface(sinkName, awsContextCreator.fromConfig(awsConfig.s3Config))
+    storage = new MultipartBlobStoreStorage(sinkName, awsContextCreator.fromConfig(awsConfig.s3Config))
 
     val configs = Option(context).flatMap(c => Option(c.configs())).filter(_.isEmpty == false).getOrElse(props)
 
@@ -67,7 +75,8 @@ class S3SinkTask extends SinkTask {
 
     setErrorRetryInterval
 
-    writerManager = S3WriterManager.from(config, sinkName)(storageInterface)
+    writerManager = S3WriterManager.from(config, storage, sinkName)
+    watermarkSeeker = WatermarkSeeker.from(config, storage)
   }
 
   private def setErrorRetryInterval = {
@@ -167,13 +176,11 @@ class S3SinkTask extends SinkTask {
         .map(tp => TopicPartition(Topic(tp.topic), tp.partition))
         .toSet
 
-      writerManager.open(topicPartitions)
-        .foreach {
-          case (topicPartition, offset) =>
-            logger.debug(s"[$sinkName] Seeking to ${topicPartition.topic.value}-${topicPartition.partition}:${offset.value}")
-            context.offset(topicPartition.toKafka, offset.value)
-        }
-
+      watermarkSeeker.latest(topicPartitions).foreach {
+        case (topicPartition, offset) =>
+          logger.debug(s"Seeking to ${topicPartition.topic.value}:${topicPartition.partition}:${offset.value}")
+          context.offset(topicPartition.toKafka, offset.value)
+      }
     } catch {
       case NonFatal(e) =>
         logger.error(s"[$sinkName] Error opening s3 sink writer", e)
@@ -193,7 +200,7 @@ class S3SinkTask extends SinkTask {
   }
 
   override def stop(): Unit = {
-    logger.debug(s"[{}] Stop")
+    logger.debug(s"[{}] Stop", sinkName)
 
     writerManager.close()
     writerManager = null

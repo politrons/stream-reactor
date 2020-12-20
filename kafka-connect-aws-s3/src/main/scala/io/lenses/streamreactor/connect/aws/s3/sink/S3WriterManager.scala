@@ -22,11 +22,9 @@ import com.typesafe.scalalogging.StrictLogging
 import io.lenses.streamreactor.connect.aws.s3.formats.S3FormatWriter
 import io.lenses.streamreactor.connect.aws.s3.model._
 import io.lenses.streamreactor.connect.aws.s3.sink.config.S3SinkConfig
-import io.lenses.streamreactor.connect.aws.s3.storage.{MultipartBlobStoreOutputStream, S3Writer, S3WriterImpl, StorageInterface}
+import io.lenses.streamreactor.connect.aws.s3.storage.{MultipartBlobStoreOutputStream, S3Writer, S3WriterImpl, Storage}
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.connect.errors.ConnectException
-
-import scala.util.Try
 
 /**
   * Manages the lifecycle of [[S3Writer]] instances.
@@ -44,8 +42,8 @@ class S3WriterManager(sinkName: String,
                       fileNamingStrategyFn: Topic => S3FileNamingStrategy,
                       errorPolicy: ErrorPolicy,
                       numberOfRetries: Int,
-                     )
-                     (implicit storageInterface: StorageInterface) extends ErrorHandler with StrictLogging {
+                      storage: Storage
+                     ) extends ErrorHandler with StrictLogging {
 
   initialize(numberOfRetries, errorPolicy)
 
@@ -78,25 +76,6 @@ class S3WriterManager(sinkName: String,
       .mapValues(_.commit())
       .values
       .maxBy(_.offset)
-  }
-
-  def open(partitions: Set[TopicPartition]): Map[TopicPartition, Offset] = {
-    logger.debug(s"[{}] Received call to S3WriterManager.open", sinkName)
-
-    partitions.collect {
-      case topicPartition: TopicPartition =>
-        val fileNamingStrategy = fileNamingStrategyFn(topicPartition.topic)
-        val bucketAndPrefix = bucketAndPrefixFn(topicPartition.topic)
-        val topicPartitionPrefix = fileNamingStrategy.topicPartitionPrefix(bucketAndPrefix, topicPartition)
-        val seeker = new OffsetSeeker(fileNamingStrategy)
-        seeker.seek(topicPartitionPrefix)(storageInterface)
-          .find(_.toTopicPartition == topicPartition)
-        match {
-          case Some(topicPartitionOffset) => Some(topicPartition, topicPartitionOffset.offset)
-          case None => None
-        }
-    }.flatten
-      .toMap
   }
 
   def close(): Unit = {
@@ -149,7 +128,8 @@ class S3WriterManager(sinkName: String,
       commitPolicyFn(topicPartition.topic),
       formatWriterFn,
       fileNamingStrategyFn(topicPartition.topic),
-      partitionValues
+      partitionValues,
+      storage
     )
   }
 
@@ -185,8 +165,7 @@ class S3WriterManager(sinkName: String,
 }
 
 object S3WriterManager {
-  def from(config: S3SinkConfig, sinkName: String)
-          (implicit storageInterface: StorageInterface): S3WriterManager = {
+  def from(config: S3SinkConfig, storage: Storage, sinkName: String): S3WriterManager = {
 
     // TODO: make this configurable
     val MinAllowedMultipartSize: Int = 5242880
@@ -209,7 +188,7 @@ object S3WriterManager {
 
     val outputStreamFn: (BucketAndPath, Int) => () => MultipartBlobStoreOutputStream = {
       (bucketAndPath, int) =>
-        () => new MultipartBlobStoreOutputStream(bucketAndPath, int)
+        () => new MultipartBlobStoreOutputStream(bucketAndPath, int, storage)
     }
 
     val formatWriterFn: (TopicPartition, Map[PartitionField, String]) => S3FormatWriter = (topicPartition, partitionValues) =>
@@ -232,6 +211,7 @@ object S3WriterManager {
       fileNamingStrategyFn,
       config.s3Config.errorPolicy,
       config.s3Config.connectorRetryConfig.numberOfRetries,
+      storage
     )
   }
 }
