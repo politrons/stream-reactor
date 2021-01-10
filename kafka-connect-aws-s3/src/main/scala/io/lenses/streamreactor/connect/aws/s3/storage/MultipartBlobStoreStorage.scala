@@ -37,7 +37,7 @@ import scala.collection.JavaConverters._
 import scala.collection.immutable.VectorBuilder
 import scala.util.Try
 
-class MultipartBlobStoreStorageInterface(sinkName: String, blobStoreContext: BlobStoreContext) extends Storage with LazyLogging {
+class MultipartBlobStoreStorage(sinkName: String, blobStoreContext: BlobStoreContext) extends Storage with LazyLogging {
 
   private val blobStore = blobStoreContext.getBlobStore
   private val awsMaxKeys = 1000
@@ -107,7 +107,11 @@ class MultipartBlobStoreStorageInterface(sinkName: String, blobStoreContext: Blo
 
     blobStore.copyBlob(originalFilename.bucket, originalFilename.path, newFilename.bucket, newFilename.path, CopyOptions.NONE)
 
-    blobStore.removeBlob(originalFilename.bucket, originalFilename.path)
+    remove(originalFilename)
+  }
+
+  override def remove(filename: BucketAndPath): Unit = {
+    blobStore.removeBlob(filename.bucket, filename.path)
   }
 
   override def close(): Unit = blobStoreContext.close()
@@ -144,10 +148,18 @@ class MultipartBlobStoreStorageInterface(sinkName: String, blobStoreContext: Blo
       nextMarker = Option(pageSet.getNextMarker)
       pageSet.asScala.foreach { metadata =>
         if (metadata.getType == StorageType.BLOB)
-          builder.+(metadata.getName)
+          builder.+=(metadata.getName)
       }
     } while (nextMarker.nonEmpty)
     builder.result()
+  }
+
+  override def putBlob(bucketAndPath: BucketAndPath, payload: String): Unit = {
+    val s3PutOptions = PutOptions.Builder.multipart()
+    val blob = blobStore.blobBuilder(bucketAndPath.path)
+      .payload(payload)
+      .build
+    blobStore.putBlob(bucketAndPath.bucket, blob, s3PutOptions)
   }
 
   override def getBlob(bucketAndPath: BucketAndPath): InputStream = {
