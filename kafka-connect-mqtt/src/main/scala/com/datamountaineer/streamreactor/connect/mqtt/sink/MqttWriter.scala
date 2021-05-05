@@ -62,7 +62,7 @@ class MqttWriter(client: MqttClient, settings: MqttSinkSettings,
     val t = Try(grouped.map({
       case (topic, records) =>
         //get the kcql statements for this topic
-        val kcqls: Set[Kcql] = mappings.get(topic).get
+        val kcqls: Set[Kcql] = mappings(topic)
         kcqls.map(k => {
           //for all the records in the group transform
           records.map(r => {
