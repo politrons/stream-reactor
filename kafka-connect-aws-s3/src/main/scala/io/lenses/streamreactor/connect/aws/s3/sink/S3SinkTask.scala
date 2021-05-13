@@ -19,16 +19,10 @@ package io.lenses.streamreactor.connect.aws.s3.sink
 
 import com.datamountaineer.streamreactor.common.errors.RetryErrorPolicy
 import com.datamountaineer.streamreactor.common.utils.JarManifest
-import com.datamountaineer.streamreactor.connect.utils.JarManifest
 import io.lenses.streamreactor.connect.aws.s3.auth.AwsContextCreator
 import io.lenses.streamreactor.connect.aws.s3.model._
 import io.lenses.streamreactor.connect.aws.s3.sink.commit.Committer
-import io.lenses.streamreactor.connect.aws.s3.sink.commit.WatermarkSeeker
 import io.lenses.streamreactor.connect.aws.s3.sink.config.S3SinkConfig
-import io.lenses.streamreactor.connect.aws.s3.sink.conversion.HeaderToStringConverter
-import io.lenses.streamreactor.connect.aws.s3.sink.conversion.ValueToSinkDataConverter
-import io.lenses.streamreactor.connect.aws.s3.storage.MultipartBlobStoreStorageInterface
-import io.lenses.streamreactor.connect.aws.s3.storage.StorageInterface
 import io.lenses.streamreactor.connect.aws.s3.sink.conversion.HeaderToStringConverter
 import io.lenses.streamreactor.connect.aws.s3.sink.conversion.ValueToSinkDataConverter
 import io.lenses.streamreactor.connect.aws.s3.storage.MultipartBlobStoreStorage

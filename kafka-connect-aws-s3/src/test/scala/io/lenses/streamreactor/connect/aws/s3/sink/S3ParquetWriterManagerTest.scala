@@ -62,8 +62,7 @@ class S3ParquetWriterManagerTest extends AnyFlatSpec with Matchers with S3TestCo
   )
 
   "parquet sink" should "write 2 records to parquet format in s3" in {
-
-    val sink = S3WriterManager.from(parquetConfig, storage, Gen1Committer.from(parquetConfig, storage))
+    val sink = S3WriterManager.from(parquetConfig, storage, Gen1Committer.from(parquetConfig, storage), "name")
     firstUsers.zipWithIndex.foreach {
       case (struct: Struct, index: Int) =>
         sink.write(TopicPartitionOffset(Topic(TopicName), 1, Offset(index + 1)), MessageDetail(None, StructSinkData(struct), Map.empty[String, SinkData]))

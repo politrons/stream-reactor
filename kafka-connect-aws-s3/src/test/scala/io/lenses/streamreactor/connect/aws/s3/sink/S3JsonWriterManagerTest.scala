@@ -59,7 +59,7 @@ class S3JsonWriterManagerTest extends AnyFlatSpec with Matchers with S3TestConfi
     )
 
     val sink = S3WriterManager.from(config, storage, Gen1Committer.from(config, storage), "sinkName")
-    sink.write(TopicPartitionOffset(Topic(TopicName), 1, Offset(1)), MessageDetail(None, StructSinkData(users.head), Map.empty[String, String]))
+    sink.write(TopicPartitionOffset(Topic(TopicName), 1, Offset(1)), MessageDetail(None, StructSinkData(users.head), Map.empty[String, SinkData]))
     sink.close()
 
 

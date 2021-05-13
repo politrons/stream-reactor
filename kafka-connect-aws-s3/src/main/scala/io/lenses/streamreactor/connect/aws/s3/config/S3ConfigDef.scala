@@ -17,7 +17,12 @@
 
 package io.lenses.streamreactor.connect.aws.s3.config
 
-import com.datamountaineer.streamreactor.connect.config.base.traits._
+import com.datamountaineer.streamreactor.common.config.base.traits.BaseConfig
+import com.datamountaineer.streamreactor.common.config.base.traits.ConnectionSettings
+import com.datamountaineer.streamreactor.common.config.base.traits.ErrorPolicySettings
+import com.datamountaineer.streamreactor.common.config.base.traits.KcqlSettings
+import com.datamountaineer.streamreactor.common.config.base.traits.NumberRetriesSettings
+import com.datamountaineer.streamreactor.common.config.base.traits.UserSettings
 import org.apache.kafka.common.config.ConfigDef
 import org.apache.kafka.common.config.ConfigDef.Importance
 import org.apache.kafka.common.config.ConfigDef.Type

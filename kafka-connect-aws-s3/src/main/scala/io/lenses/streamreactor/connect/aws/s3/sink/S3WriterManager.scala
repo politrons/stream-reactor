@@ -30,6 +30,8 @@ import io.lenses.streamreactor.connect.aws.s3.storage.Storage
 import org.apache.kafka.clients.consumer.OffsetAndMetadata
 import org.apache.kafka.connect.errors.ConnectException
 
+import scala.util.Try
+
 /**
   * Manages the lifecycle of [[S3Writer]] instances.
   *
@@ -49,8 +51,6 @@ class S3WriterManager(sinkName: String,
                       storage: Storage,
                       committer: Committer
                      ) extends ErrorHandler with StrictLogging {
-
-  private val logger = org.slf4j.LoggerFactory.getLogger(getClass.getName)
   initialize(numberOfRetries, errorPolicy)
 
   case class MapKey(topicPartition: TopicPartition, bucketAndPath: BucketAndPath)
@@ -119,7 +119,7 @@ class S3WriterManager(sinkName: String,
     val fileNamingStrategy = fileNamingStrategyFn(topicPartition.topic)
 
     val partitionValues = if (fileNamingStrategy.shouldProcessPartitionValues)
-      fileNamingStrategy.processPartitionValues(messageDetail)
+      fileNamingStrategy.processPartitionValues(messageDetail, topicPartition)
     else
       Map.empty[PartitionField, String]
 
